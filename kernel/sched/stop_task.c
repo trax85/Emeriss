@@ -11,42 +11,11 @@
 
 #ifdef CONFIG_SMP
 static int
-select_task_rq_stop(struct task_struct *p, int sd_flag, int flags)
+select_task_rq_stop(struct task_struct *p, int cpu, int sd_flag, int flags)
 {
 	return task_cpu(p); /* stop tasks as never migrate */
 }
 #endif /* CONFIG_SMP */
-
-#ifdef CONFIG_SCHED_HMP
-
-static void
-inc_hmp_sched_stats_stop(struct rq *rq, struct task_struct *p)
-{
-	inc_cumulative_runnable_avg(&rq->hmp_stats, p);
-}
-
-static void
-dec_hmp_sched_stats_stop(struct rq *rq, struct task_struct *p)
-{
-	dec_cumulative_runnable_avg(&rq->hmp_stats, p);
-}
-
-static void
-fixup_hmp_sched_stats_stop(struct rq *rq, struct task_struct *p,
-			   u32 new_task_load)
-{
-	fixup_cumulative_runnable_avg(&rq->hmp_stats, p, new_task_load);
-}
-
-#else	/* CONFIG_SCHED_HMP */
-
-static inline void
-inc_hmp_sched_stats_stop(struct rq *rq, struct task_struct *p) { }
-
-static inline void
-dec_hmp_sched_stats_stop(struct rq *rq, struct task_struct *p) { }
-
-#endif	/* CONFIG_SCHED_HMP */
 
 static void
 check_preempt_curr_stop(struct rq *rq, struct task_struct *p, int flags)
@@ -54,30 +23,31 @@ check_preempt_curr_stop(struct rq *rq, struct task_struct *p, int flags)
 	/* we're never preempted */
 }
 
-static struct task_struct *pick_next_task_stop(struct rq *rq)
+static struct task_struct *
+pick_next_task_stop(struct rq *rq, struct task_struct *prev)
 {
 	struct task_struct *stop = rq->stop;
 
-	if (stop && stop->on_rq) {
-		stop->se.exec_start = rq_clock_task(rq);
-		return stop;
-	}
+	if (!stop || !task_on_rq_queued(stop))
+		return NULL;
 
-	return NULL;
+	put_prev_task(rq, prev);
+
+	stop->se.exec_start = rq_clock_task(rq);
+
+	return stop;
 }
 
 static void
 enqueue_task_stop(struct rq *rq, struct task_struct *p, int flags)
 {
 	add_nr_running(rq, 1);
-	inc_hmp_sched_stats_stop(rq, p);
 }
 
 static void
 dequeue_task_stop(struct rq *rq, struct task_struct *p, int flags)
 {
 	sub_nr_running(rq, 1);
-	dec_hmp_sched_stats_stop(rq, p);
 }
 
 static void yield_task_stop(struct rq *rq)
@@ -132,6 +102,10 @@ get_rr_interval_stop(struct rq *rq, struct task_struct *task)
 	return 0;
 }
 
+static void update_curr_stop(struct rq *rq)
+{
+}
+
 /*
  * Simple, special scheduling class for the per-CPU stop tasks:
  */
@@ -158,9 +132,5 @@ const struct sched_class stop_sched_class = {
 
 	.prio_changed		= prio_changed_stop,
 	.switched_to		= switched_to_stop,
-#ifdef CONFIG_SCHED_HMP
-	.inc_hmp_sched_stats	= inc_hmp_sched_stats_stop,
-	.dec_hmp_sched_stats	= dec_hmp_sched_stats_stop,
-	.fixup_hmp_sched_stats	= fixup_hmp_sched_stats_stop,
-#endif
+	.update_curr		= update_curr_stop,
 };
