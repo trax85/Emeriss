@@ -201,7 +201,7 @@ static int cpu_uevent(struct device *dev, struct kobj_uevent_env *env)
  *
  * Initialize and register the CPU device.
  */
-int __cpuinit register_cpu(struct cpu *cpu, int num)
+int register_cpu(struct cpu *cpu, int num)
 {
 	int error;
 
