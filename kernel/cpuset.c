@@ -2230,6 +2230,13 @@ retry:
 		remove_tasks_in_empty_cpuset(cs);
 }
 
+static bool force_rebuild;
+
+void cpuset_force_rebuild(void)
+{
+	force_rebuild = true;
+}
+
 /**
  * cpuset_hotplug_workfn - handle CPU/memory hotunplug for a cpuset
  *

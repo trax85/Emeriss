@@ -7478,7 +7478,7 @@ static int cpuset_cpu_active(struct notifier_block *nfb, unsigned long action,
 		 * restore the original sched domains by considering the
 		 * cpuset configurations.
 		 */
-		//cpuset_force_rebuild();
+		cpuset_force_rebuild();
 
 	case CPU_ONLINE:
 	case CPU_DOWN_FAILED:
