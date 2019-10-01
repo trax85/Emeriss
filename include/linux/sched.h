@@ -1642,13 +1642,12 @@ struct task_struct {
 
 	/* Protection of the PI data structures: */
 	raw_spinlock_t pi_lock;
-	
 	struct wake_q_node wake_q;
-	
+
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task */
-	struct rb_root pi_waiters;
 	struct rb_node *pi_waiters_leftmost;
+	struct plist_head pi_waiters;
 	/* Deadlock detection and priority inheritance handling */
 	struct rt_mutex_waiter *pi_blocked_on;
 #endif
@@ -3365,5 +3364,12 @@ static inline unsigned long rlimit_max(unsigned int limit)
 {
 	return task_rlimit_max(current, limit);
 }
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+extern int out_dynamic_stune_boost;
+extern int default_topapp_boost;
+extern struct cgroup_subsys_state *topapp_css;
+int dynamic_boost_write(struct cgroup_subsys_state *css, int boost);
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 #endif
