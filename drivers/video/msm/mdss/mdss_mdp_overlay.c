@@ -27,7 +27,6 @@
 #include <linux/sort.h>
 #include <linux/sw_sync.h>
 #include <linux/kmemleak.h>
-#include <linux/devfreq_boost.h>
 
 #include <linux/msm_iommu_domains.h>
 #include <soc/qcom/event_timer.h>
@@ -4264,9 +4263,6 @@ static int __handle_overlay_prepare(struct msm_fb_data_type *mfd,
 
 	pr_debug("prepare fb%d num_ovs=%d\n", mfd->index, num_ovs);
 
-	if(frame_boost)
-		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 200);
-
 	for (i = 0; i < num_ovs; i++) {
 		if (IS_RIGHT_MIXER_OV(ip_ovs[i].flags, ip_ovs[i].dst_rect.x,
 			left_lm_w))
@@ -5058,7 +5054,7 @@ static int __vsync_retire_setup(struct msm_fb_data_type *mfd)
 {
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	char name[24];
-	struct sched_param param = { .sched_priority = 9 }; 
+	struct sched_param param = { .sched_priority = 9 };
 
 	snprintf(name, sizeof(name), "mdss_fb%d_retire", mfd->index);
 	mdp5_data->vsync_timeline = sw_sync_timeline_create(name);
