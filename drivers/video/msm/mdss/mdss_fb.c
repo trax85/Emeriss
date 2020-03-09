@@ -54,11 +54,11 @@
 #ifdef CONFIG_MACH_XIAOMI_KENZO
 #include "mdss_dsi.h"
 #endif
+#include <linux/devfreq_boost.h>
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
 #define CREATE_TRACE_POINTS
 #include "mdss_debug.h"
-
 #include "mdss_livedisplay.h"
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
@@ -3919,6 +3919,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 
 	case MSMFB_DISPLAY_COMMIT:
+		devfreq_boost_kick(DEVFREQ_MSM_CPUBW);
 		ret = mdss_fb_display_commit(info, argp);
 		break;
 
