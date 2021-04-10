@@ -36,6 +36,7 @@ obj-y += sched/
 obj-y += locking/
 obj-y += power/
 obj-y += irq/
+obj-y += cpu/
 obj-y += rcu/
 
 obj-$(CONFIG_CHECKPOINT_RESTORE) += kcmp.o

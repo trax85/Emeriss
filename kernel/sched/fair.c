@@ -37,9 +37,7 @@
 #include "tune.h"
 
 #ifndef TJK_HMP
-// TJK: resolve undefined sysctl symbols
 unsigned int __read_mostly sysctl_sched_wake_to_idle = 0;
-__read_mostly unsigned int sysctl_sched_wakeup_load_threshold = 110;
 #endif
 
 
@@ -57,6 +55,9 @@ __read_mostly unsigned int sysctl_sched_wakeup_load_threshold = 110;
  */
 unsigned int sysctl_sched_latency = 6000000ULL;
 unsigned int normalized_sysctl_sched_latency = 6000000ULL;
+
+unsigned int sysctl_sched_is_big_little = 0;
+unsigned int sysctl_sched_sync_hint_enable = 1;
 
 /*
  * The initial- and re-scaling of tunables is configurable
@@ -639,15 +640,10 @@ static inline u64 calc_delta_fair(u64 delta, struct sched_entity *se)
  */
 static u64 __sched_period(unsigned long nr_running)
 {
-	u64 period = sysctl_sched_latency;
-	unsigned long nr_latency = sched_nr_latency;
-
-	if (unlikely(nr_running > nr_latency)) {
-		period = sysctl_sched_min_granularity;
-		period *= nr_running;
-	}
-
-	return period;
+	if (unlikely(nr_running > sched_nr_latency))
+		return nr_running * sysctl_sched_min_granularity;
+	else
+		return sysctl_sched_latency;
 }
 
 /*
@@ -698,11 +694,11 @@ static inline void __update_task_entity_utilization(struct sched_entity *se);
 /* Give new task start runnable values to heavy its load in infant time */
 void init_task_runnable_average(struct task_struct *p)
 {
-	u32 start_load = sysctl_sched_latency >> 10;
+	u32 slice;
 
-	p->se.avg.decay_count = 0;
-	p->se.avg.runnable_avg_sum = p->se.avg.running_avg_sum = start_load;
-	p->se.avg.avg_period = start_load;
+	slice = sched_slice(task_cfs_rq(p), &p->se) >> 10;
+	p->se.avg.runnable_avg_sum = p->se.avg.running_avg_sum = slice;
+	p->se.avg.avg_period = slice;
 	__update_task_entity_contrib(&p->se);
 	__update_task_entity_utilization(&p->se);
 }
@@ -2294,8 +2290,10 @@ static __always_inline int __update_entity_runnable_avg(u64 now, int cpu,
 	unsigned long scale_freq = arch_scale_freq_capacity(NULL, cpu);
 	unsigned long scale_cpu = arch_scale_cpu_capacity(NULL, cpu);
 
-	//TJK fix tracing: trace_sched_contrib_scale_f(cpu, scale_freq, scale_cpu);
+#define TK_PERIOD_SHIFT 10
+#define TK_PERIOD (1<<TK_PERIOD_SHIFT)
 
+	trace_sched_contrib_scale_f(cpu, scale_freq, scale_cpu);
 
 	delta = now - sa->last_runnable_update;
 	/*
@@ -2311,14 +2309,14 @@ static __always_inline int __update_entity_runnable_avg(u64 now, int cpu,
 	 * Use 1024ns as the unit of measurement since it's a reasonable
 	 * approximation of 1us and fast to compute.
 	 */
-	delta >>= 10;
+	delta >>= TK_PERIOD_SHIFT;
 	if (!delta)
 		return 0;
 	sa->last_runnable_update = now;
 
 	/* delta_w is the amount already accumulated against our next period */
-	delta_w = sa->avg_period % 1024;
-	if (delta + delta_w >= 1024) {
+	delta_w = sa->avg_period % TK_PERIOD;
+	if (delta + delta_w >= TK_PERIOD) {
 		/* period roll-over */
 		decayed = 1;
 
@@ -2327,7 +2325,7 @@ static __always_inline int __update_entity_runnable_avg(u64 now, int cpu,
 		 * out how much from delta we need to complete the current
 		 * period and accrue it.
 		 */
-		delta_w = 1024 - delta_w;
+		delta_w = TK_PERIOD - delta_w;
 		scaled_delta_w = (delta_w * scale_freq) >> SCHED_CAPACITY_SHIFT;
 
 		if (runnable)
@@ -2343,8 +2341,8 @@ static __always_inline int __update_entity_runnable_avg(u64 now, int cpu,
 		delta -= delta_w;
 
 		/* Figure out how many additional periods this update spans */
-		periods = delta / 1024;
-		delta %= 1024;
+		periods = delta / TK_PERIOD;
+		delta %= TK_PERIOD;
 
 		sa->runnable_avg_sum = decay_load(sa->runnable_avg_sum,
 						  periods + 1);
@@ -2595,11 +2593,9 @@ static inline void update_entity_load_avg(struct sched_entity *se,
 	contrib_delta = __update_entity_load_avg_contrib(se);
 	utilization_delta = __update_entity_utilization_avg_contrib(se);
 
-#if 0
-	// TJK: fix tracing
 	if (entity_is_task(se))
 		trace_sched_load_avg_task(task_of(se), &se->avg);
-#endif
+
 	if (!update_cfs_rq)
 		return;
 
@@ -2612,7 +2608,7 @@ static inline void update_entity_load_avg(struct sched_entity *se,
 							-utilization_delta);
 	}
 
-	// TJK: fix tracing: trace_sched_load_avg_cpu(cpu, cfs_rq);
+	trace_sched_load_avg_cpu(cpu, cfs_rq);
 }
 
 /*
@@ -2842,11 +2838,19 @@ static void check_spread(struct cfs_rq *cfs_rq, struct sched_entity *se)
 #endif
 }
 
-static unsigned int Lgentle_fair_sleepers = 1;
+static unsigned int Lgentle_fair_sleepers = 0;
+static unsigned int Larch_power = 0;
+
 void relay_gfs(unsigned int gfs)
 {
 	Lgentle_fair_sleepers = gfs;
 }
+
+void relay_ap(unsigned int ap)
+{
+	Larch_power = ap;
+}
+
 
 static void
 place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
@@ -2870,7 +2874,7 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 		 * Halve their sleep time's effect, to allow
 		 * for a gentler effect of sleepers:
 		 */
-		if (Lgentle_fair_sleepers)
+		if (sched_feat(GENTLE_FAIR_SLEEPERS))
 			thresh >>= 1;
 
 		vruntime -= thresh;
@@ -2882,61 +2886,20 @@ place_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int initial)
 
 static void check_enqueue_throttle(struct cfs_rq *cfs_rq);
 
-
-/*
- * MIGRATION
- *
- *	dequeue
- *	  update_curr()
- *	    update_min_vruntime()
- *	  vruntime -= min_vruntime
- *
- *	enqueue
- *	  update_curr()
- *	    update_min_vruntime()
- *	  vruntime += min_vruntime
- *
- * this way the vruntime transition between RQs is done when both
- * min_vruntime are up-to-date.
- *
- * WAKEUP (remote)
- *
- *	->migrate_task_rq_fair() (p->state == TASK_WAKING)
- *	  vruntime -= min_vruntime
- *
- *	enqueue
- *	  update_curr()
- *	    update_min_vruntime()
- *	  vruntime += min_vruntime
- *
- * this way we don't have the most up-to-date min_vruntime on the originating
- * CPU and an up-to-date min_vruntime on the destination CPU.
- */
-
 static void
 enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 {
-	bool renorm = !(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_MIGRATED);
-	bool curr = cfs_rq->curr == se;
-
 	/*
 	 * Update the normalized vruntime before updating min_vruntime
 	 * through calling update_curr().
 	 */
-	if (renorm && curr)
+	if (!(flags & ENQUEUE_WAKEUP) || (flags & ENQUEUE_WAKING))
 		se->vruntime += cfs_rq->min_vruntime;
-
-	update_curr(cfs_rq);
 
 	/*
-	 * Otherwise, renormalise after, such that we're placed at the current
-	 * moment in time, instead of some random moment in the past. Being
-	 * placed in the past could significantly boost this task to the
-	 * fairness detriment of existing tasks.
+	 * Update run-time statistics of the 'current'.
 	 */
-	if (renorm && !curr)
-		se->vruntime += cfs_rq->min_vruntime;
-
+	update_curr(cfs_rq);
 	enqueue_entity_load_avg(cfs_rq, se, flags & ENQUEUE_WAKEUP);
 	account_entity_enqueue(cfs_rq, se);
 	update_cfs_shares(cfs_rq);
@@ -2948,7 +2911,7 @@ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 
 	update_stats_enqueue(cfs_rq, se);
 	check_spread(cfs_rq, se);
-	if (!curr)
+	if (se != cfs_rq->curr)
 		__enqueue_entity(cfs_rq, se);
 	se->on_rq = 1;
 
@@ -3723,7 +3686,7 @@ static int runtime_refresh_within(struct cfs_bandwidth *cfs_b, u64 min_expire)
 	u64 remaining;
 
 	/* if the call-back is running a quota refresh is already occurring */
-	if (hrtimer_callback_running_relaxed(refresh_timer))
+	if (hrtimer_callback_running(refresh_timer))
 		return 1;
 
 	/* is a quota refresh about to occur? */
@@ -4073,7 +4036,7 @@ static inline void hrtick_update(struct rq *rq)
 }
 #endif
 
-static unsigned int capacity_margin = 1280; /* ~20% margin */
+unsigned int __read_mostly sysctl_sched_capacity_margin = 1280; /* ~20% margin */
 
 static bool cpu_overutilized(int cpu);
 static unsigned long get_cpu_usage(int cpu);
@@ -4104,7 +4067,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 		 *
 		 * note: in the case of encountering a throttled cfs_rq we will
 		 * post the final h_nr_running increment below.
-		 */
+		*/
 		if (cfs_rq_throttled(cfs_rq))
 			break;
 		cfs_rq->h_nr_running++;
@@ -4146,7 +4109,7 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 			unsigned long req_cap =
 				get_boosted_cpu_usage(cpu_of(rq));
 
-			req_cap = req_cap * capacity_margin
+			req_cap = req_cap * sysctl_sched_capacity_margin
 					>> SCHED_CAPACITY_SHIFT;
 			cpufreq_sched_set_cap(cpu_of(rq), req_cap);
 		}
@@ -4229,7 +4192,7 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 				get_boosted_cpu_usage(cpu_of(rq));
 
 			if (rq->cfs.nr_running) {
-				req_cap = req_cap * capacity_margin
+				req_cap = req_cap * sysctl_sched_capacity_margin
 						>> SCHED_CAPACITY_SHIFT;
 				cpufreq_sched_set_cap(cpu_of(rq), req_cap);
 			} else {
@@ -4241,6 +4204,189 @@ static void dequeue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 }
 
 #ifdef CONFIG_SMP
+
+/*
+ * per rq 'load' arrray crap; XXX kill this.
+ */
+
+/*
+ * The exact cpuload at various idx values, calculated at every tick would be
+ * load = (2^idx - 1) / 2^idx * load + 1 / 2^idx * cur_load
+ *
+ * If a cpu misses updates for n-1 ticks (as it was idle) and update gets called
+ * on nth tick when cpu may be busy, then we have:
+ * load = ((2^idx - 1) / 2^idx)^(n-1) * load
+ * load = (2^idx - 1) / 2^idx) * load + 1 / 2^idx * cur_load
+ *
+ * decay_load_missed() below does efficient calculation of
+ * load = ((2^idx - 1) / 2^idx)^(n-1) * load
+ * avoiding 0..n-1 loop doing load = ((2^idx - 1) / 2^idx) * load
+ *
+ * The calculation is approximated on a 128 point scale.
+ * degrade_zero_ticks is the number of ticks after which load at any
+ * particular idx is approximated to be zero.
+ * degrade_factor is a precomputed table, a row for each load idx.
+ * Each column corresponds to degradation factor for a power of two ticks,
+ * based on 128 point scale.
+ * Example:
+ * row 2, col 3 (=12) says that the degradation at load idx 2 after
+ * 8 ticks is 12/128 (which is an approximation of exact factor 3^8/4^8).
+ *
+ * With this power of 2 load factors, we can degrade the load n times
+ * by looking at 1 bits in n and doing as many mult/shift instead of
+ * n mult/shifts needed by the exact degradation.
+ */
+#define DEGRADE_SHIFT		7
+static const unsigned char
+		degrade_zero_ticks[CPU_LOAD_IDX_MAX] = {0, 8, 32, 64, 128};
+static const unsigned char
+		degrade_factor[CPU_LOAD_IDX_MAX][DEGRADE_SHIFT + 1] = {
+					{0, 0, 0, 0, 0, 0, 0, 0},
+					{64, 32, 8, 0, 0, 0, 0, 0},
+					{96, 72, 40, 12, 1, 0, 0},
+					{112, 98, 75, 43, 15, 1, 0},
+					{120, 112, 98, 76, 45, 16, 2} };
+
+/*
+ * Update cpu_load for any missed ticks, due to tickless idle. The backlog
+ * would be when CPU is idle and so we just decay the old load without
+ * adding any new load.
+ */
+static unsigned long
+decay_load_missed(unsigned long load, unsigned long missed_updates, int idx)
+{
+	int j = 0;
+
+	if (!missed_updates)
+		return load;
+
+	if (missed_updates >= degrade_zero_ticks[idx])
+		return 0;
+
+	if (idx == 1)
+		return load >> missed_updates;
+
+	while (missed_updates) {
+		if (missed_updates % 2)
+			load = (load * degrade_factor[idx][j]) >> DEGRADE_SHIFT;
+
+		missed_updates >>= 1;
+		j++;
+	}
+	return load;
+}
+
+/*
+ * Update rq->cpu_load[] statistics. This function is usually called every
+ * scheduler tick (TICK_NSEC). With tickless idle this will not be called
+ * every tick. We fix it up based on jiffies.
+ */
+static void __update_cpu_load(struct rq *this_rq, unsigned long this_load,
+			      unsigned long pending_updates)
+{
+	int i, scale;
+
+	this_rq->nr_load_updates++;
+
+	/* Update our load: */
+	this_rq->cpu_load[0] = this_load; /* Fasttrack for idx 0 */
+	for (i = 1, scale = 2; i < CPU_LOAD_IDX_MAX; i++, scale += scale) {
+		unsigned long old_load, new_load;
+
+		/* scale is effectively 1 << i now, and >> i divides by scale */
+
+		old_load = this_rq->cpu_load[i];
+		old_load = decay_load_missed(old_load, pending_updates - 1, i);
+		new_load = this_load;
+		/*
+		 * Round up the averaging division if load is increasing. This
+		 * prevents us from getting stuck on 9 if the load is 10, for
+		 * example.
+		 */
+		if (new_load > old_load)
+			new_load += scale - 1;
+
+		this_rq->cpu_load[i] = (old_load * (scale - 1) + new_load) >> i;
+	}
+
+	sched_avg_update(this_rq);
+}
+
+#ifdef CONFIG_NO_HZ_COMMON
+/*
+ * There is no sane way to deal with nohz on smp when using jiffies because the
+ * cpu doing the jiffies update might drift wrt the cpu doing the jiffy reading
+ * causing off-by-one errors in observed deltas; {0,2} instead of {1,1}.
+ *
+ * Therefore we cannot use the delta approach from the regular tick since that
+ * would seriously skew the load calculation. However we'll make do for those
+ * updates happening while idle (nohz_idle_balance) or coming out of idle
+ * (tick_nohz_idle_exit).
+ *
+ * This means we might still be one tick off for nohz periods.
+ */
+
+/*
+ * Called from nohz_idle_balance() to update the load ratings before doing the
+ * idle balance.
+ */
+static void update_idle_cpu_load(struct rq *this_rq)
+{
+	unsigned long curr_jiffies = ACCESS_ONCE(jiffies);
+	unsigned long load = this_rq->cfs.runnable_load_avg;
+	unsigned long pending_updates;
+
+	/*
+	 * bail if there's load or we're actually up-to-date.
+	 */
+	if (load || curr_jiffies == this_rq->last_load_update_tick)
+		return;
+
+	pending_updates = curr_jiffies - this_rq->last_load_update_tick;
+	this_rq->last_load_update_tick = curr_jiffies;
+
+	__update_cpu_load(this_rq, load, pending_updates);
+}
+
+/*
+ * Called from tick_nohz_idle_exit() -- try and fix up the ticks we missed.
+ */
+void update_cpu_load_nohz(void)
+{
+	struct rq *this_rq = this_rq();
+	unsigned long curr_jiffies = ACCESS_ONCE(jiffies);
+	unsigned long pending_updates;
+
+	if (curr_jiffies == this_rq->last_load_update_tick)
+		return;
+
+	raw_spin_lock(&this_rq->lock);
+	pending_updates = curr_jiffies - this_rq->last_load_update_tick;
+	if (pending_updates) {
+		this_rq->last_load_update_tick = curr_jiffies;
+		/*
+		 * We were idle, this means load 0, the current load might be
+		 * !0 due to remote wakeups and the sort.
+		 */
+		__update_cpu_load(this_rq, 0, pending_updates);
+	}
+	raw_spin_unlock(&this_rq->lock);
+}
+#endif /* CONFIG_NO_HZ */
+
+/*
+ * Called from scheduler_tick()
+ */
+void update_cpu_load_active(struct rq *this_rq)
+{
+	unsigned long load = this_rq->cfs.runnable_load_avg;
+	/*
+	 * See the mess around update_idle_cpu_load() / update_cpu_load_nohz().
+	 */
+	this_rq->last_load_update_tick = jiffies;
+	__update_cpu_load(this_rq, load, 1);
+}
+
 /* Used instead of source_load when we know the type == 0 */
 static unsigned long weighted_cpuload(const int cpu)
 {
@@ -4419,7 +4565,7 @@ static long effective_load(struct task_group *tg, int cpu, long wl, long wg)
 		 * wl = S * s'_i; see (2)
 		 */
 		if (W > 0 && w < W)
-			wl = (w * (long)tg->shares) / W;
+			wl = (w * tg->shares) / W;
 		else
 			wl = tg->shares;
 
@@ -4635,7 +4781,7 @@ static int find_new_capacity(struct energy_env *eenv,
 static bool cpu_overutilized(int cpu)
 {
 	return (capacity_of(cpu) * 1024) <
-				(get_cpu_usage(cpu) * capacity_margin);
+				(get_cpu_usage(cpu) * sysctl_sched_capacity_margin);
 }
 
 static int group_idle_state(struct sched_group *sg)
@@ -4861,14 +5007,13 @@ static int energy_diff(struct energy_env *eenv)
 	eenv->energy_payoff = 0;
 
 	result = energy_diff_evaluate(eenv);
-#if 0
-	// TJK: fix tracint
+
 	trace_sched_energy_diff(eenv->task,
 			eenv->src_cpu, eenv->dst_cpu, eenv->usage_delta,
 			eenv->nrg.before, eenv->nrg.after, eenv->nrg.diff,
 			eenv->cap.before, eenv->cap.after, eenv->cap.delta,
 			eenv->nrg.delta, eenv->energy_payoff);
-#endif
+
 	return result;
 }
 
@@ -5045,7 +5190,7 @@ boosted_task_utilization(struct task_struct *task)
 	if (!task_rq(task)->rd->overutilized)
 		margin = schedtune_task_margin(task);
 
-	//TJK: fix tracing: trace_sched_boost_task(task, utilization, margin);
+	trace_sched_boost_task(task, utilization, margin);
 
 	utilization += margin;
 
@@ -5065,10 +5210,13 @@ boosted_task_utilization(struct task_struct *task)
 static inline bool __task_fits(struct task_struct *p, int cpu, int usage)
 {
 	unsigned long capacity = capacity_of(cpu);
+	int orig_usage = usage;
 
 	usage += boosted_task_utilization(p);
 
-	return (capacity * 1024) > (usage * capacity_margin);
+	trace_sched_task_fits(p, cpu, orig_usage, usage, task_utilization(p), capacity, sysctl_sched_capacity_margin);
+
+	return (capacity * 1024) > (usage * sysctl_sched_capacity_margin);
 }
 
 static inline bool task_fits_capacity(struct task_struct *p, int cpu)
@@ -5079,7 +5227,7 @@ static inline bool task_fits_capacity(struct task_struct *p, int cpu)
 	if (capacity == max_capacity)
 		return true;
 
-	if (capacity * capacity_margin > max_capacity * 1024)
+	if (capacity * sysctl_sched_capacity_margin > max_capacity * 1024)
 		return true;
 
 	return __task_fits(p, cpu, 0);
@@ -5135,7 +5283,7 @@ get_boosted_cpu_usage(int cpu)
 	usage = get_cpu_usage(cpu);
 	margin = schedtune_cpu_margin(cpu, usage);
 
-	// TJK: fix tracing trace_sched_boost_cpu(cpu, usage, margin);
+	trace_sched_boost_cpu(cpu, usage, margin);
 
 	usage += margin;
 	return usage;
@@ -5153,7 +5301,7 @@ find_idlest_group(struct sched_domain *sd, struct task_struct *p,
 	struct sched_group *fit_group = NULL, *spare_group = NULL;
 	unsigned long min_load = ULONG_MAX, this_load = 0;
 	unsigned long fit_capacity = ULONG_MAX;
-	unsigned long max_spare_capacity = capacity_margin - SCHED_LOAD_SCALE;
+	unsigned long max_spare_capacity = sysctl_sched_capacity_margin - SCHED_LOAD_SCALE;
 	int load_idx = sd->forkexec_idx;
 	int imbalance = 100 + (sd->imbalance_pct-100)/2;
 
@@ -5241,6 +5389,10 @@ find_idlest_cpu(struct sched_group *group, struct task_struct *p, int this_cpu)
 	int shallowest_idle_cpu = -1;
 	int i;
 
+	/* Check if we have any choice: */
+	if (group->group_weight == 1)
+		return cpumask_first(sched_group_cpus(group));
+
 	/* Traverse only the allowed CPUs */
 	for_each_cpu_and(i, sched_group_cpus(group), tsk_cpus_allowed(p)) {
 		if (task_fits_cpu(p, i)) {
@@ -5293,15 +5445,19 @@ static int select_idle_sibling(struct task_struct *p, int target)
 	struct sched_domain *sd;
 	struct sched_group *sg;
 	int i = task_cpu(p);
+	int best_idle = -1;
+	int best_idle_cstate = -1;
+	int best_idle_capacity = INT_MAX;
 
+#if 0
 	if (idle_cpu(target))
 		return target;
-
 	/*
 	 * If the prevous cpu is cache affine and idle, don't be stupid.
 	 */
 	if (i != target && cpus_share_cache(i, target) && idle_cpu(i))
 		return i;
+#endif
 
 	/*
 	 * Otherwise, iterate the domains and find an elegible idle cpu.
@@ -5314,29 +5470,103 @@ static int select_idle_sibling(struct task_struct *p, int target)
 						tsk_cpus_allowed(p)))
 				goto next;
 
-			for_each_cpu(i, sched_group_cpus(sg)) {
-				if (i == target || !idle_cpu(i))
+			for_each_cpu_and(i, tsk_cpus_allowed(p), sched_group_cpus(sg)) {
+				struct rq *rq = cpu_rq(i);
+				int idle_idx = idle_get_state_idx(rq);
+				unsigned long new_usage = boosted_task_utilization(p);
+				unsigned long capacity_orig = capacity_orig_of(i);
+				if (new_usage > capacity_orig || !idle_cpu(i))
 					goto next;
+
+				if (i == target && new_usage <= capacity_curr_of(target))
+					return target;
+
+				if (best_idle < 0 ||
+					(idle_idx < best_idle_cstate && capacity_orig <= best_idle_capacity)) {
+					best_idle = i;
+					best_idle_cstate = idle_idx;
+					best_idle_capacity = capacity_orig;
+				}
 			}
 
-			target = cpumask_first_and(sched_group_cpus(sg),
-					tsk_cpus_allowed(p));
-			goto done;
 next:
 			sg = sg->next;
 		} while (sg != sd->groups);
 	}
-done:
+
+	if (best_idle >= 0)
+		target = best_idle;
+
 	return target;
 }
 
-static int energy_aware_wake_cpu(struct task_struct *p, int target)
+static inline int find_best_target(struct task_struct *p)
+{
+	int i;
+	int target_cpu = -1;
+	int target_capacity = 0;
+	int idle_cpu = -1;
+	int backup_cpu = -1;
+
+	/*
+	 * Favor 1) busy cpu with most capacity at current OPP
+	 *       2) idle_cpu with capacity at current OPP
+	 *       3) busy cpu with capacity at higher OPP
+	 */
+	for_each_cpu(i, tsk_cpus_allowed(p)) {
+
+		int cur_capacity = capacity_curr_of(i);
+
+		/*
+		 * p's blocked utilization is still accounted for on prev_cpu
+		 * so prev_cpu will receive a negative bias due to the double
+		 * accounting. However, the blocked utilization may be zero.
+		 */
+		int new_util = get_cpu_usage(i) + boosted_task_utilization(p);
+
+		if (new_util > capacity_orig_of(i))
+			continue;
+
+		if (new_util < cur_capacity) {
+			
+			if (cpu_rq(i)->nr_running) {
+				if (target_capacity < cur_capacity) {
+					/* busy CPU with most capacity at current OPP */
+					target_cpu = i;
+					target_capacity = cur_capacity;
+				}
+			} else if (idle_cpu < 0) {
+				/* first idle CPU with capacity at current OPP */
+				idle_cpu = i;
+			}
+		} else if (backup_cpu < 0 && cpu_rq(i)->nr_running) {
+			/* first busy CPU with capacity at higher OPP */
+			backup_cpu = i;
+		}
+	}
+
+	if (target_cpu < 0) {
+		target_cpu = idle_cpu >= 0 ? idle_cpu : backup_cpu;
+	}
+
+	return target_cpu;
+}
+
+static int energy_aware_wake_cpu(struct task_struct *p, int target, int sync)
 {
 	struct sched_domain *sd;
 	struct sched_group *sg, *sg_target;
 	int target_max_cap = INT_MAX;
-	int target_cpu = task_cpu(p);
+	int target_cpu = -1;
 	int i;
+
+	if (sysctl_sched_sync_hint_enable && sync) {
+		int cpu = smp_processor_id();
+		cpumask_t search_cpus;
+		cpumask_and(&search_cpus, tsk_cpus_allowed(p), cpu_online_mask);
+		if (cpumask_test_cpu(cpu, &search_cpus))
+			return cpu;
+	}
 
 	sd = rcu_dereference(per_cpu(sd_ea, task_cpu(p)));
 
@@ -5345,54 +5575,64 @@ static int energy_aware_wake_cpu(struct task_struct *p, int target)
 
 	sg = sd->groups;
 	sg_target = sg;
-
-	/*
-	 * Find group with sufficient capacity. We only get here if no cpu is
-	 * overutilized. We may end up overutilizing a cpu by adding the task,
-	 * but that should not be any worse than select_idle_sibling().
-	 * load_balance() should sort it out later as we get above the tipping
-	 * point.
-	 */
-	do {
-		/* Assuming all cpus are the same in group */
-		int max_cap_cpu = group_first_cpu(sg);
-
+	if (sysctl_sched_is_big_little) {
 		/*
-		 * Assume smaller max capacity means more energy-efficient.
-		 * Ideally we should query the energy model for the right
-		 * answer but it easily ends up in an exhaustive search.
+		 * Find group with sufficient capacity. We only get here if no cpu is
+		 * overutilized. We may end up overutilizing a cpu by adding the task,
+		 * but that should not be any worse than select_idle_sibling().
+		 * load_balance() should sort it out later as we get above the tipping
+		 * point.
 		 */
-		if (capacity_of(max_cap_cpu) < target_max_cap &&
-		    task_fits_capacity(p, max_cap_cpu)) {
-			sg_target = sg;
-			target_max_cap = capacity_of(max_cap_cpu);
-		}
-	} while (sg = sg->next, sg != sd->groups);
+		do {
+			/* Assuming all cpus are the same in group */
+			int max_cap_cpu = group_first_cpu(sg);
 
-	/* Find cpu with sufficient capacity */
-	for_each_cpu_and(i, tsk_cpus_allowed(p), sched_group_cpus(sg_target)) {
+			/*
+			 * Assume smaller max capacity means more energy-efficient.
+			 * Ideally we should query the energy model for the right
+			 * answer but it easily ends up in an exhaustive search.
+			 */
+			if (capacity_of(max_cap_cpu) < target_max_cap &&
+			    task_fits_capacity(p, max_cap_cpu)) {
+					sg_target = sg;
+					target_max_cap = capacity_of(max_cap_cpu);
+			}
+
+		} while (sg = sg->next, sg != sd->groups);
+
+		/* Find cpu with sufficient capacity */
+		for_each_cpu_and(i, tsk_cpus_allowed(p), sched_group_cpus(sg_target)) {
+			/*
+			 * p's blocked utilization is still accounted for on prev_cpu
+			 * so prev_cpu will receive a negative bias due the double
+			 * accouting. However, the blocked utilization may be zero.
+			 */
+			int new_usage = get_cpu_usage(i) + boosted_task_utilization(p);
+
+			if (new_usage >	capacity_orig_of(i))
+				continue;
+
+			if (new_usage <	capacity_curr_of(i)) {
+				target_cpu = i;
+				if (cpu_rq(i)->nr_running)
+					break;
+			}
+
+			/* cpu has capacity at higher OPP, keep it as fallback */
+			if (target_cpu < 0)
+				target_cpu = i;
+		}
+	} else {
 		/*
-		 * p's blocked utilization is still accounted for on prev_cpu
-		 * so prev_cpu will receive a negative bias due the double
-		 * accouting. However, the blocked utilization may be zero.
+		 * Find a cpu with sufficient capacity
 		 */
-		int new_usage = get_cpu_usage(i) + boosted_task_utilization(p);
+		int tmp_target = find_best_target(p);
+		if (tmp_target >= 0) target_cpu = tmp_target;
+        }
 
-		if (new_usage >	capacity_orig_of(i))
-			continue;
-
-		if (new_usage <	capacity_curr_of(i)) {
-			target_cpu = i;
-			if (cpu_rq(i)->nr_running)
-				break;
-		}
-
-		/* cpu has capacity at higher OPP, keep it as fallback */
-		if (target_cpu == task_cpu(p))
-			target_cpu = i;
-	}
-
-	if (target_cpu != task_cpu(p)) {
+        if (target_cpu < 0)
+		target_cpu = task_cpu(p);
+	else if (target_cpu != task_cpu(p)) {
 		struct energy_env eenv = {
 			.usage_delta	= task_utilization(p),
 			.src_cpu	= task_cpu(p),
@@ -5467,7 +5707,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 
 	if (sd_flag & SD_BALANCE_WAKE && want_sibling) {
 		if (energy_aware() && !cpu_rq(cpu)->rd->overutilized)
-			new_cpu = energy_aware_wake_cpu(p, prev_cpu);
+			new_cpu = energy_aware_wake_cpu(p, prev_cpu, sync);
 		else
 			new_cpu = select_idle_sibling(p, prev_cpu);
 		goto unlock;
@@ -5524,30 +5764,6 @@ migrate_task_rq_fair(struct task_struct *p, int next_cpu)
 {
 	struct sched_entity *se = &p->se;
 	struct cfs_rq *cfs_rq = cfs_rq_of(se);
-
-	/*
-	 * As blocked tasks retain absolute vruntime the migration needs to
-	 * deal with this by subtracting the old and adding the new
-	 * min_vruntime -- the latter is done by enqueue_entity() when placing
-	 * the task on the new runqueue.
-	 */
-	if (p->state == TASK_WAKING) {
-		u64 min_vruntime;
-
-#ifndef CONFIG_64BIT
-		u64 min_vruntime_copy;
-
-		do {
-			min_vruntime_copy = cfs_rq->min_vruntime_copy;
-			smp_rmb();
-			min_vruntime = cfs_rq->min_vruntime;
-		} while (min_vruntime != min_vruntime_copy);
-#else
-		min_vruntime = cfs_rq->min_vruntime;
-#endif
-
-		se->vruntime -= min_vruntime;
-	}
 
 	/*
 	 * Load tracking: accumulate removed load so that it can be processed
@@ -5761,18 +5977,21 @@ again:
 		 * entity, update_curr() will update its vruntime, otherwise
 		 * forget we've ever seen it.
 		 */
-		if (curr && curr->on_rq)
-			update_curr(cfs_rq);
-		else
-			curr = NULL;
+		if (curr) {
+			if (curr->on_rq)
+				update_curr(cfs_rq);
+			else
+				curr = NULL;
 
-		/*
-		 * This call to check_cfs_rq_runtime() will do the throttle and
-		 * dequeue its entity in the parent(s). Therefore the 'simple'
-		 * nr_running test will indeed be correct.
-		 */
-		if (unlikely(check_cfs_rq_runtime(cfs_rq)))
-			goto simple;
+			/*
+			 * This call to check_cfs_rq_runtime() will do the
+			 * throttle and dequeue its entity in the parent(s).
+			 * Therefore the 'simple' nr_running test will indeed
+			 * be correct.
+			 */
+			if (unlikely(check_cfs_rq_runtime(cfs_rq)))
+				goto simple;
+		}
 
 		se = pick_next_entity(cfs_rq, curr);
 		cfs_rq = group_cfs_rq(se);
@@ -6347,13 +6566,6 @@ static int detach_tasks(struct lb_env *env)
 		return 0;
 
 	while (!list_empty(tasks)) {
-		/*
-		 * We don't want to steal all, otherwise we may be treated likewise,
-		 * which could at worst lead to a livelock crash.
-		 */
-		if (env->idle != CPU_NOT_IDLE && env->src_rq->nr_running <= 1)
-			break;
-
 		p = list_first_entry(tasks, struct task_struct, se.group_node);
 
 		env->loop++;
@@ -6687,8 +6899,8 @@ static unsigned long scale_rt_capacity(int cpu)
 	 */
 	age_stamp = ACCESS_ONCE(rq->age_stamp);
 	avg = ACCESS_ONCE(rq->rt_avg);
+	delta = __rq_clock_broken(rq) - age_stamp;
 
-	delta = rq_clock(rq) - age_stamp;
 	if (unlikely(delta < 0))
 		delta = 0;
 
@@ -6887,7 +7099,7 @@ group_is_overloaded(struct lb_env *env, struct sg_lb_stats *sgs)
 static inline bool
 group_smaller_cpu_capacity(struct sched_group *sg, struct sched_group *ref)
 {
-	return sg->sgc->max_capacity + capacity_margin - SCHED_LOAD_SCALE <
+	return sg->sgc->max_capacity + sysctl_sched_capacity_margin - SCHED_LOAD_SCALE <
 							ref->sgc->max_capacity;
 }
 
@@ -6946,9 +7158,6 @@ static inline void update_sg_lb_stats(struct lb_env *env,
 		sgs->nr_numa_running += rq->nr_numa_running;
 		sgs->nr_preferred_running += rq->nr_preferred_running;
 #endif
-
-		if (nr_running > 1) *overload = true;
-
 		sgs->sum_weighted_load += weighted_cpuload(i);
 		if (idle_cpu(i))
 			sgs->idle_cpus++;
@@ -7068,6 +7277,9 @@ static inline enum fbq_type fbq_classify_rq(struct rq *rq)
 }
 #endif /* CONFIG_NUMA_BALANCING */
 
+#define lb_sd_parent(sd) \
+        (sd->parent && sd->parent->groups != sd->parent->groups->next)
+
 /**
  * update_sd_lb_stats - Update sched_domain's statistics for load balancing.
  * @env: The load balancing environment.
@@ -7091,7 +7303,6 @@ static inline void update_sd_lb_stats(struct lb_env *env, struct sd_lb_stats *sd
 		int local_group;
 
 		local_group = cpumask_test_cpu(env->dst_cpu, sched_group_cpus(sg));
-
 		if (local_group) {
 			sds->local = sg;
 			sgs = &sds->local_stat;
@@ -7124,6 +7335,15 @@ static inline void update_sd_lb_stats(struct lb_env *env, struct sd_lb_stats *sd
 			sgs->group_type = group_overloaded;
 		}
 
+		/*
+		 * Ignore task groups with misfit tasks if local group has no
+		 * capacity or if per-cpu capacity isn't higher.
+		 */
+		if (sgs->group_type == group_misfit_task &&
+		    (!group_has_capacity(env, &sds->local_stat) ||
+		     !group_smaller_cpu_capacity(sg, sds->local)))
+			sgs->group_type = group_other;
+
 		if (update_sd_pick_busiest(env, sds, sg, sgs)) {
 			sds->busiest = sg;
 			sds->busiest_stat = *sgs;
@@ -7142,7 +7362,7 @@ next_group:
 
 	env->src_grp_nr_running = sds->busiest_stat.sum_nr_running;
 
-	if (!env->sd->parent) {
+	if (!lb_sd_parent(env->sd)) {
 		/* update overload indicator if we are at root domain */
 		if (env->dst_rq->rd->overload != overload)
 			env->dst_rq->rd->overload = overload;
@@ -7561,8 +7781,6 @@ static struct rq *find_busiest_queue(struct lb_env *env,
 /* Working cpumask for load_balance and load_balance_newidle. */
 DEFINE_PER_CPU(cpumask_var_t, load_balance_mask);
 
-#define NEED_ACTIVE_BALANCE_THRESHOLD 10
-
 static int need_active_balance(struct lb_env *env)
 {
 	struct sched_domain *sd = env->sd;
@@ -7645,11 +7863,10 @@ static int load_balance(int this_cpu, struct rq *this_rq,
 			int *continue_balancing)
 {
 	int ld_moved, cur_ld_moved, active_balance = 0;
-	struct sched_domain *sd_parent = sd->parent;
+	struct sched_domain *sd_parent = lb_sd_parent(sd) ? sd->parent : NULL;
 	struct sched_group *group;
 	struct rq *busiest;
 	unsigned long flags;
-	//struct cpumask *cpus = this_cpu_cpumask_var_ptr(load_balance_mask);
 	struct cpumask *cpus = this_cpu_ptr(load_balance_mask);
 
 	struct lb_env env = {
@@ -7730,7 +7947,7 @@ more_balance:
 			unsigned long req_cap =
 				get_boosted_cpu_usage(env.src_cpu);
 
-			req_cap = req_cap * capacity_margin
+			req_cap = req_cap * sysctl_sched_capacity_margin
 					>> SCHED_CAPACITY_SHIFT;
 			cpufreq_sched_set_cap(env.src_cpu, req_cap);
 		}
@@ -7759,7 +7976,7 @@ more_balance:
 				unsigned long req_cap =
 					get_boosted_cpu_usage(env.dst_cpu);
 
-				req_cap = req_cap * capacity_margin
+				req_cap = req_cap * sysctl_sched_capacity_margin
 						>> SCHED_CAPACITY_SHIFT;
 				cpufreq_sched_set_cap(env.dst_cpu, req_cap);
 			}
@@ -7792,9 +8009,6 @@ more_balance:
 		 * excess load moved.
 		 */
 		if ((env.flags & LBF_DST_PINNED) && env.imbalance > 0) {
-
-			/* Prevent to re-select dst_cpu via env's cpus */
-			cpumask_clear_cpu(env.dst_cpu, env.cpus);
 
 			/* Prevent to re-select dst_cpu via env's cpus */
 			cpumask_clear_cpu(env.dst_cpu, env.cpus);
@@ -7883,9 +8097,7 @@ more_balance:
 			 * We've kicked active balancing, reset the failure
 			 * counter.
 			 */
-			sd->nr_balance_failed =
-			    sd->cache_nice_tries +
-			    NEED_ACTIVE_BALANCE_THRESHOLD - 1;
+			sd->nr_balance_failed = sd->cache_nice_tries+1;
 		}
 	} else
 		sd->nr_balance_failed = 0;
@@ -8140,7 +8352,7 @@ static int active_load_balance_cpu_stop(void *data)
 				unsigned long req_cap =
 					get_boosted_cpu_usage(env.src_cpu);
 
-				req_cap = req_cap * capacity_margin
+				req_cap = req_cap * sysctl_sched_capacity_margin
 						>> SCHED_CAPACITY_SHIFT;
 				cpufreq_sched_set_cap(env.src_cpu, req_cap);
 			}
@@ -8166,7 +8378,7 @@ out_unlock:
 			unsigned long req_cap =
 				get_boosted_cpu_usage(target_cpu);
 
-			req_cap = req_cap * capacity_margin
+			req_cap = req_cap * sysctl_sched_capacity_margin
 					>> SCHED_CAPACITY_SHIFT;
 			cpufreq_sched_set_cap(target_cpu, req_cap);
 		}
@@ -8518,6 +8730,10 @@ static inline bool nohz_kick_needed(struct rq *rq)
 	    (!energy_aware() || cpu_overutilized(cpu)))
 		return true;
 
+	/* Do idle load balance if there have misfit task */
+	if (energy_aware() && rq->misfit_task)
+		return true;
+
 	rcu_read_lock();
 	sd = rcu_dereference(per_cpu(sd_busy, cpu));
 	if (sd && !energy_aware()) {
@@ -8649,7 +8865,7 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 
 		if (capacity_curr < capacity_orig &&
 		    (capacity_curr * SCHED_LOAD_SCALE) <
-		    (get_cpu_usage(cpu) * capacity_margin))
+		    (get_cpu_usage(cpu) * sysctl_sched_capacity_margin))
 			cpufreq_sched_set_cap(cpu, capacity_orig);
 	}
 }
@@ -8663,17 +8879,31 @@ static void task_fork_fair(struct task_struct *p)
 {
 	struct cfs_rq *cfs_rq;
 	struct sched_entity *se = &p->se, *curr;
+	int this_cpu = smp_processor_id();
 	struct rq *rq = this_rq();
+	unsigned long flags;
 
-	raw_spin_lock(&rq->lock);
+	raw_spin_lock_irqsave(&rq->lock, flags);
+
 	update_rq_clock(rq);
 
 	cfs_rq = task_cfs_rq(current);
 	curr = cfs_rq->curr;
-	if (curr) {
-		update_curr(cfs_rq);
+
+	/*
+	 * Not only the cpu but also the task_group of the parent might have
+	 * been changed after parent->se.parent,cfs_rq were copied to
+	 * child->se.parent,cfs_rq. So call __set_task_cpu() to make those
+	 * of child point to valid ones.
+	 */
+	rcu_read_lock();
+	__set_task_cpu(p, this_cpu);
+	rcu_read_unlock();
+
+	update_curr(cfs_rq);
+
+	if (curr)
 		se->vruntime = curr->vruntime;
-	}
 	place_entity(cfs_rq, se, 1);
 
 	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
@@ -8686,7 +8916,8 @@ static void task_fork_fair(struct task_struct *p)
 	}
 
 	se->vruntime -= cfs_rq->min_vruntime;
-	raw_spin_unlock(&rq->lock);
+
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
 }
 
 /*
@@ -8754,16 +8985,31 @@ static void switched_from_fair(struct rq *rq, struct task_struct *p)
  */
 static void switched_to_fair(struct rq *rq, struct task_struct *p)
 {
-#ifdef CONFIG_FAIR_GROUP_SCHED
 	struct sched_entity *se = &p->se;
+
+#ifdef CONFIG_FAIR_GROUP_SCHED
 	/*
 	 * Since the real-depth could have been changed (only FAIR
 	 * class maintain depth value), reset depth properly.
 	 */
 	se->depth = se->parent ? se->parent->depth + 1 : 0;
 #endif
-	if (!task_on_rq_queued(p))
+
+	if (!task_on_rq_queued(p)) {
+
+		/*
+		 * Ensure the task has a non-normalized vruntime when it is switched
+		 * back to the fair class with !queued, so that enqueue_entity() at
+		 * wake-up time will do the right thing.
+		 *
+		 * If it's queued, then the enqueue_entity(.flags=0) makes the task
+		 * has non-normalized vruntime, if it's !queued, then it still has
+		 * normalized vruntime.
+		 */
+		if (p->state != TASK_RUNNING)
+			se->vruntime += cfs_rq_of(se)->min_vruntime;
 		return;
+	}
 
 	/*
 	 * We were most likely switched from sched_rt, so
@@ -9057,6 +9303,8 @@ const struct sched_class fair_sched_class = {
 
 	.rq_online		= rq_online_fair,
 	.rq_offline		= rq_offline_fair,
+
+	.task_waking		= task_waking_fair,
 #endif
 
 	.set_curr_task          = set_curr_task_fair,
