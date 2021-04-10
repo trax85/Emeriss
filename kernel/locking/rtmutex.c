@@ -322,6 +322,7 @@ int rt_mutex_getprio(struct task_struct *task)
 		   task->normal_prio);
 }
 
+/*Comment it out for now
 struct task_struct *rt_mutex_get_top_task(struct task_struct *task)
 {
 	if (likely(!task_has_pi_waiters(task)))
@@ -329,7 +330,7 @@ struct task_struct *rt_mutex_get_top_task(struct task_struct *task)
 
 	return task_top_pi_waiter(task)->task;
 }
-
+*/
 /*
  * Called by sched_setscheduler() to get the priority which will be
  * effective after the change.

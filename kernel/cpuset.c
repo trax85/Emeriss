@@ -1485,9 +1485,6 @@ static int cpuset_can_attach(struct cgroup *cgrp, struct cgroup_taskset *tset)
 		goto out_unlock;
 
 	cgroup_taskset_for_each(task, cgrp, tset) {
-		ret = task_can_attach(task, cs->cpus_allowed);
-		if (ret)
-			goto out_unlock;
 		ret = security_task_setscheduler(task);
 		if (ret)
 			goto out_unlock;
