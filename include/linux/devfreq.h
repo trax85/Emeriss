@@ -180,6 +180,7 @@ struct devfreq {
 	unsigned long last_stat_updated;
 	bool is_boost_device;
 	bool max_boost;
+	bool do_wake_boost;
 };
 
 #if defined(CONFIG_PM_DEVFREQ)
