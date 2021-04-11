@@ -388,7 +388,7 @@ schedtune_boostgroup_update(int idx, int boost)
 		bg = &per_cpu(cpu_boost_groups, cpu);
 
 		/* CGroups are never associated to non active cgroups */
-		BUG_ON(!bg->group[idx].valid);
+		//WARN_ON(!bg->group[idx].valid);
 
 		/*
 		 * Keep track of current boost values to compute the per CPU
