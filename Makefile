@@ -585,7 +585,7 @@ KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS	+= -O3
 
 ifdef CONFIG_LTO
 LTO_CFLAGS    := -flto -flto=jobserver -fno-fat-lto-objects \
