@@ -1655,7 +1655,7 @@ static int gbam_data_ch_probe(struct platform_device *pdev)
 		port = bam_ports[i].port;
 		d = &port->data_ch;
 
-		if (!strncmp(bam_ch_names[i], pdev->name,
+		if (!strscpy(bam_ch_names[i], pdev->name,
 					BAM_DMUX_CH_NAME_MAX_LEN)) {
 			set_bit(BAM_CH_READY, &d->flags);
 
