@@ -1,15 +1,13 @@
 #!/sbin/sh
-#Shadow-EAS Ramdisk Edits 
+#Shadow-EAS Ramdisk Edits
 CONFIGFILE="/tmp/init.emeriss.rc"
 PROFILE=$(cat /tmp/aroma/profile.prop | cut -d '=' -f2)
 if [ $PROFILE == 1 ]; then
-PROF=0
+	PROF=0
 elif [ $PROFILE == 2 ]; then
-PROF=2
-fi
-if [ $PROFILE == 3 ]; then
-		PROF=1
-	fi
+	PROF=2
+elif [ $PROFILE == 3 ]; then
+	PROF=1
 fi
 
 FS=`grep "item.0.1" /tmp/aroma/mods.prop | cut -d '=' -f2`
@@ -24,8 +22,6 @@ if [ $FC = 1 ]; then
 	USB=1
 elif [ $FC = 0 ]; then
 	USB=0
-fi
-
 fi
 
 DT2W=$(cat /tmp/aroma/wake.prop | grep -e "dt2w" | cut -d '=' -f2)
