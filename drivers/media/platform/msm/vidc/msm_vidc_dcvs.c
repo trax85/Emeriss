@@ -605,10 +605,11 @@ void msm_dcvs_set_buff_req_handled(struct msm_vidc_inst *inst)
 
 	if (inst->session_type == MSM_VIDC_ENCODER) {
 		if (msm_dcvs_enc_check(inst)) {
-			if (!inst->dcvs.is_additional_buff_added)
+			if (!inst->dcvs.is_additional_buff_added){
 				inst->dcvs.is_additional_buff_added = true;
 				dprintk(VIDC_PROF,
 					"ENC_DCVS: additional o/p buffer added");
+			}
 		}
 	}
 }
