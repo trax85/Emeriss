@@ -202,7 +202,7 @@ static void plugin_misc_hook_t6(struct plugin_misc *p, u8 status)
 			set_and_clr_flag(MSC_FLAG_CAL,
 				MSC_FLAG_CALING, &obs->flag);
 
-			dev_dbg2(dev, "MSC hook T6 end\n");
+		dev_dbg2(dev, "MSC hook T6 end\n");
 	}
 
 }

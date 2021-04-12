@@ -1575,7 +1575,7 @@ int msm_camera_power_down(struct msm_camera_power_ctrl_t *ctrl,
 			else
 				pr_err("%s error in power up/down seq data\n",
 								__func__);
-				break;
+			break;
 		case SENSOR_GPIO:
 			if (pd->seq_val >= SENSOR_GPIO_MAX ||
 				!ctrl->gpio_conf->gpio_num_info) {

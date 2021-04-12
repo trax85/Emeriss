@@ -212,7 +212,7 @@ static void plugin_wdg_hook_t6(struct plugin_wdg *p, u8 status)
 			set_and_clr_flag(WD_FLAG_CAL,
 				WD_FLAG_CALING, &obs->flag);
 
-			dev_dbg2(dev, "WD hook T6 end\n");
+		dev_dbg2(dev, "WD hook T6 end\n");
 	}
 
 	dev_info2(dev, "mxt wd flag=0x%lx %x\n",
