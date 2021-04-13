@@ -1,28 +1,15 @@
 #!/sbin/sh
-#Shadow-EAS Ramdisk Edits
+
 CONFIGFILE="/tmp/init.emeriss.rc"
 PROFILE=$(cat /tmp/aroma/profile.prop | cut -d '=' -f2)
 if [ $PROFILE == 1 ]; then
-	PROF=0
+PROF=0
 elif [ $PROFILE == 2 ]; then
-	PROF=2
+PROF=2
 elif [ $PROFILE == 3 ]; then
-	PROF=1
+PROF=1
 fi
-
-FS=`grep "item.0.1" /tmp/aroma/mods.prop | cut -d '=' -f2`
-if [ $FS = 1 ]; then
-	FS=0
-elif [ $FS = 0 ]; then
-	FS=1
-fi
-
-FC=`grep "item.0.2" /tmp/aroma/mods.prop | cut -d '=' -f2`
-if [ $FC = 1 ]; then
-	USB=1
-elif [ $FC = 0 ]; then
-	USB=0
-fi
+#
 
 DT2W=$(cat /tmp/aroma/wake.prop | grep -e "dt2w" | cut -d '=' -f2)
 if [ $DT2W == 1 ]; then
@@ -46,7 +33,6 @@ elif [ $VIBS == 2 ]; then
 elif [ $VIBS == 3 ]; then
 	VIBS=0
 fi
-
 HAP=$(cat /tmp/aroma/haptic.prop | cut -d '=' -f2)
 if [ $HAP == 1 ]; then
 	HAPS=1856
@@ -55,6 +41,89 @@ elif [ $HAP == 2 ]; then
 elif [ $HAP == 3 ]; then
 	HAPS=986
 fi
+#
+PROFILE=$(cat /tmp/aroma/profile.prop | cut -d '=' -f2)
+if [ $PROFILE == 1 ]; then
+GOV="interactive"
+BOOST="0"
+FMS=400000
+FMB=400000
+FMAS=1440000
+FMAB=1843200
+AID=N
+ABST=0
+TBST=0
+SWAP=40
+VFS=100
+GLVL=7
+GFREQ=200000000
+GMAXFREQ=600000000
+TEMPTT=65
+TEMPTL=45
+LPA=1
+LPT=1035
+LPH=8
+LPP=2
+LPC=6
+elif [ $PROFILE == 2 ]; then
+GOV="cultivation"
+BOOST="0"
+FMS=400000
+FMB=400000
+FMAS=1305600
+FMAB=1305600
+AID=Y
+ABST=0
+TBST=0
+SWAP=20
+VFS=40
+GLVL=8
+GFREQ=133333333
+GMAXFREQ=432000000
+TEMPTT=60
+TEMPTL=40
+LPA=1
+LPT=1050
+LPH=11
+LPP=4
+LPC=6
+elif [ $PROFILE == 3 ]; then
+GOV="interactive"
+BOOST="0:1305600 4:1305600"
+FMS=691200
+FMB=883200
+FMAS=1440000
+FMAB=1843200
+AID=N
+ABST=1
+TBST=1
+SWAP=30
+VFS=100
+GLVL=6
+GFREQ=266666667
+GMAXFREQ=710000000
+TEMPTT=70
+TEMPTL=50
+LPA=0
+LPT=1035
+LPH=8
+LPP=0
+LPC=6
+fi
+DFSC=`grep "item.0.1" /tmp/aroma/mods.prop | cut -d '=' -f2`
+if [ $DFSC = 1 ]; then
+DFS=0
+elif [ $DFSC = 0 ]; then
+DFS=1
+fi
+FC=`grep "item.0.2" /tmp/aroma/mods.prop | cut -d '=' -f2`
+if [ $FC = 1 ]; then
+USB=1
+elif [ $FC = 0 ]; then
+USB=0
+fi
+echo "# VARIABLES FOR SH" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
 
 ZRAM=$(cat /tmp/aroma/ram.prop | cut -d '=' -f2)
 ALMK=`grep "item.0.6" /tmp/aroma/mods.prop | cut -d '=' -f2`
@@ -62,14 +131,22 @@ ROM=$(cat /tmp/aroma/rom.prop | cut -d '=' -f2)
 echo "# USER TWEAKS" >> $CONFIGFILE
 if [ $ROM -eq 2 ] || [ $ROM -eq 1 ]; then
  if [ $ZRAM -eq 1 ]; then
-    echo "service usertweaks /system/bin/sh /system/etc/shadow.sh" >> $CONFIGFILE
+    echo "service usertweaks /system/bin/sh /system/etc/emeriss.sh" >> $CONFIGFILE
  else
-    echo "service usertweaks /system/bin/sh /system/etc/shadow-zram.sh" >> $CONFIGFILE
+    echo "service usertweaks /system/bin/sh /system/etc/emeriss-zram.sh" >> $CONFIGFILE
  fi
 	echo "class main" >> $CONFIGFILE
 	echo "group root" >> $CONFIGFILE
 	echo "user root" >> $CONFIGFILE
 	echo "oneshot" >> $CONFIGFILE
+	echo "" >> $CONFIGFILE
+	if [ $ALMK -eq 1 ]; then
+	echo "service override /system/bin/sh /system/etc/lmk.sh" >> $CONFIGFILE
+    echo "class late_start" >> $CONFIGFILE
+    echo "user root" >> $CONFIGFILE
+    echo "disabled" >> $CONFIGFILE
+    echo "oneshot" >> $CONFIGFILE
+ fi
 	echo "" >> $CONFIGFILE
 	echo "service spectrum /system/bin/sh /init.spectrum.sh" >> $CONFIGFILE
 	echo "class late_start" >> $CONFIGFILE
@@ -77,35 +154,21 @@ if [ $ROM -eq 2 ] || [ $ROM -eq 1 ]; then
 	echo "disabled" >> $CONFIGFILE
 	echo "oneshot" >> $CONFIGFILE
 	echo "" >> $CONFIGFILE
- if [ $ALMK -eq 1 ]; then
-    echo "service override /system/bin/sh /system/etc/lmk.sh" >> $CONFIGFILE
-    echo "class late_start" >> $CONFIGFILE
-    echo "user root" >> $CONFIGFILE
-    echo "disabled" >> $CONFIGFILE
-    echo "oneshot" >> $CONFIGFILE
- fi
-	echo "" >> $CONFIGFILE
 	echo "on init" >> $CONFIGFILE
 	echo "" >> $CONFIGFILE
 	echo "on property:sys.boot_completed=1" >> $CONFIGFILE
 else
  if [ $ZRAM -eq 1 ]; then
-    echo "service usertweaks /system/bin/sh /vendor/etc/shadow.sh" >> $CONFIGFILE
+    echo "service usertweaks /system/bin/sh /vendor/etc/emeriss.sh" >> $CONFIGFILE
  else
-    echo "service usertweaks /system/bin/sh /vendor/etc/shadow-zram.sh" >> $CONFIGFILE
+    echo "service usertweaks /system/bin/sh /vendor/etc/emeriss-zram.sh" >> $CONFIGFILE
  fi
 	echo "class main" >> $CONFIGFILE
 	echo "group root" >> $CONFIGFILE
 	echo "user root" >> $CONFIGFILE
 	echo "oneshot" >> $CONFIGFILE
 	echo "" >> $CONFIGFILE
-	echo "service spectrum /system/bin/sh /vendor/etc/init/hw/init.spectrum.sh" >> $CONFIGFILE
-	echo "class late_start" >> $CONFIGFILE
-	echo "user root" >> $CONFIGFILE
-	echo "disabled" >> $CONFIGFILE
-	echo "oneshot" >> $CONFIGFILE
-	echo "" >> $CONFIGFILE
- if [ $ALMK -eq 1 ]; then
+	if [ $ALMK -eq 1 ]; then
     echo "service override /system/bin/sh /vendor/etc/lmk.sh" >> $CONFIGFILE
     echo "class late_start" >> $CONFIGFILE
     echo "user root" >> $CONFIGFILE
@@ -113,11 +176,21 @@ else
     echo "oneshot" >> $CONFIGFILE
  fi
 	echo "" >> $CONFIGFILE
+	echo "class late_start" >> $CONFIGFILE
+	echo "user root" >> $CONFIGFILE
+	echo "disabled" >> $CONFIGFILE
+	echo "oneshot" >> $CONFIGFILE
+	echo "" >> $CONFIGFILE
 	echo "on init" >> $CONFIGFILE
 	echo "" >> $CONFIGFILE
 	echo "on property:init.svc.vendor.qcom-post-boot=stopped" >> $CONFIGFILE
 fi
 echo "" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
+echo "# WAKE GESTURES" >> $CONFIGFILE
+echo "write /sys/android_touch/doubletap2wake " $DT2W >> $CONFIGFILE
+echo "write /sys/android_touch/sweep2wake " $S2W >> $CONFIGFILE
+echo "write /sys/android_touch/vib_strength " $VIBS >> $CONFIGFILE
 COLOR=$(cat /tmp/aroma/color.prop | cut -d '=' -f2)
 echo "# KCAL" >> $CONFIGFILE
 if [ $COLOR == 1 ]; then
@@ -146,14 +219,16 @@ echo "" >> $CONFIGFILE
 CHG=$(cat /tmp/aroma/charge.prop | cut -d '=' -f2)
 if [ $CHG == 1 ]; then
 	RATE=1400
-	echo "# CHARGE RATE" >> $CONFIGFILE
+	echo "# CHARGING RATE" >> $CONFIGFILE
 	echo "chmod 666 /sys/module/qpnp_smbcharger/parameters/default_dcp_icl_ma" >> $CONFIGFILE
 	echo "chmod 666 /sys/module/qpnp_smbcharger/parameters/default_hvdcp_icl_ma" >> $CONFIGFILE
 	echo "chmod 666 /sys/module/qpnp_smbcharger/parameters/default_hvdcp3_icl_ma" >> $CONFIGFILE
-	echo "write /sys/module/qpnp_smbcharger/parameters/default_dcp_icl_ma " $RATE >> $CONFIGFILE
-	echo "write /sys/module/qpnp_smbcharger/parameters/default_hvdcp_icl_ma " $RATE >> $CONFIGFILE
-	echo "write /sys/module/qpnp_smbcharger/parameters/default_hvdcp3_icl_ma " $RATE >> $CONFIGFILE
+	echo "write /sys/module/qpnp_smbcharger/parameters/default_dcp_icl_ma $RATE" >> $CONFIGFILE
+	echo "write /sys/module/qpnp_smbcharger/parameters/default_hvdcp_icl_ma $RATE" >> $CONFIGFILE
+	echo "write /sys/module/qpnp_smbcharger/parameters/default_hvdcp3_icl_ma $RATE" >> $CONFIGFILE
 fi
+echo "# FAST CHARGE" >> $CONFIGFILE
+echo "write /sys/kernel/fast_charge/force_fast_charge $USB" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
 echo "# DISABLE BCL & CORE CTL" >> $CONFIGFILE
 echo "write /sys/module/msm_thermal/core_control/enabled 0" >> $CONFIGFILE
@@ -162,26 +237,38 @@ echo "write /sys/devices/soc.0/qcom,bcl.56/hotplug_mask 0" >> $CONFIGFILE
 echo "write /sys/devices/soc.0/qcom,bcl.56/hotplug_soc_mask 0" >> $CONFIGFILE
 echo "write /sys/devices/soc.0/qcom,bcl.56/mode disable" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
-echo "# BRING CORES ONLINE" >> $CONFIGFILE
-echo "write /sys/devices/system/cpu/cpu0/online 1" >> $CONFIGFILE
-echo "write /sys/devices/system/cpu/cpu1/online 1" >> $CONFIGFILE
-echo "write /sys/devices/system/cpu/cpu2/online 1" >> $CONFIGFILE
-echo "write /sys/devices/system/cpu/cpu3/online 1" >> $CONFIGFILE
-echo "write /sys/devices/system/cpu/cpu4/online 1" >> $CONFIGFILE
-echo "write /sys/devices/system/cpu/cpu5/online 1" >> $CONFIGFILE
+echo "# ENABLE BCL & CORE CTL" >> $CONFIGFILE
+echo "write /sys/module/msm_thermal/core_control/enabled 0">> $CONFIGFILE
+echo "write /sys/devices/soc.0/qcom,bcl.56/mode disable" >> $CONFIGFILE
+echo "write /sys/devices/soc.0/qcom,bcl.56/hotplug_mask 48" >> $CONFIGFILE
+echo "write /sys/devices/soc.0/qcom,bcl.56/hotplug_soc_mask 32" >> $CONFIGFILE
+echo "write /sys/devices/soc.0/qcom,bcl.56/mode enable" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
-echo "# WAKE GESTURES" >> $CONFIGFILE
-echo "write /sys/android_touch/doubletap2wake " $DT2W >> $CONFIGFILE
-echo "write /sys/android_touch/sweep2wake " $S2W >> $CONFIGFILE
-echo "write /sys/android_touch/vib_strength " $VIBS >> $CONFIGFILE
 echo "" >> $CONFIGFILE
+echo "# SET IO SCHEDULER" >> $CONFIGFILE
+if [ $PROFILE == 1 ]; then
+	echo "setprop sys.io.scheduler \"maple\"" >> $CONFIGFILE
+elif [ $PROFILE == 2 ]; then
+	echo "setprop sys.io.scheduler \"fiops\"" >> $CONFIGFILE
+elif [ $PROFILE == 3 ]; then
+	echo "setprop sys.io.scheduler \"deadline\"" >> $CONFIGFILE
+fi
 echo "# HAPTIC FEEDBACK SENSOR" >> $CONFIGFILE
 echo "write /sys/class/timed_output/vibrator/vtg_level $HAPS" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
 echo "write /sys/block/mmcblk0/queue/read_ahead_kb 256" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
+echo "# TOUCH BOOST" >> $CONFIGFILE
+echo "write /sys/module/msm_performance/parameters/touchboost $TBST" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
+echo "# ADRENO IDLER" >> $CONFIGFILE
+echo "write /sys/module/adreno_idler/parameters/adreno_idler_active $AID" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
+echo "# ADRENO BOOST" >> $CONFIGFILE
+echo "write /sys/class/kgsl/kgsl-3d0/devfreq/adrenoboost $ABST" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
 echo "# FSYNC" >> $CONFIGFILE
-echo "write /sys/module/sync/parameters/fsync_enabled $FS" >> $CONFIGFILE
+echo "write /sys/module/sync/parameters/fsync_enabled $DFS" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
 BDM=`grep "item.0.3" /tmp/aroma/mods.prop | cut -d '=' -f2`
 if [ $BDM = 1 ]; then
@@ -192,50 +279,61 @@ echo "" >> $CONFIGFILE
 echo "write /sys/block/mmcblk0/queue/iostats 0" >> $CONFIGFILE
 echo "write /sys/block/mmcblk1/queue/iostats 0" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
-
+echo "" >> $CONFIGFILE
+echo "# KSM" >> $CONFIGFILE
+echo "write /sys/kernel/mm/ksm/run 0" >> $CONFIGFILE
+echo "write /sys/kernel/mm/ksm/run_charging 0" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
+echo "# CPU SCHEDULER" >> $CONFIGFILE
+echo "chmod 755 /proc/sys/kernel/sched_boost" >> $CONFIGFILE
+echo "write /proc/sys/kernel/sched_boost 1" >> $CONFIGFILE
+echo "write /proc/sys/kernel/sched_freq_inc_notify 400000" >> $CONFIGFILE
+echo "write /proc/sys/kernel/sched_freq_dec_notify 400000" >> $CONFIGFILE
+echo "write /proc/sys/kernel/sched_wake_to_idle 0" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
 echo "# DCVS" >> $CONFIGFILE
 echo "write /sys/class/devfreq/cpubw/governor \"bw_hwmon\"" >> $CONFIGFILE
 echo "write /sys/class/devfreq/cpubw/bw_hwmon/io_percent 34" >> $CONFIGFILE
+echo "write /sys/class/devfreq/cpubw/bw_hwmon/guard_band_mbps 100" >> $CONFIGFILE
 echo "write /sys/class/devfreq/qcom,memlat-cpu0.51/polling_interval 10" >> $CONFIGFILE
-echo "write /sys/class/devfreq/qcom,memlat-cpu4.52/polling_interval 20" >> $CONFIGFILE
+echo "write /sys/class/devfreq/qcom,memlat-cpu4.52/polling_interval 10" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
-
+echo "# FP BOOST" >> $CONFIGFILE
+echo "write /sys/kernel/fp_boost/enabled 1" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
 VOLT=$(cat /tmp/aroma/uv.prop | cut -d '=' -f2)
 if [ $VOLT == 1 ]; then
 	echo "# CPU & GPU EXTREME UV" >> $CONFIGFILE
 	echo "write /sys/devices/system/cpu/cpu0/cpufreq/GPU_mV_table \"680 700 760 800 860 910 970 1030 1050\"" >> $CONFIGFILE
-	echo "write /sys/devices/system/cpu/cpu0/cpufreq/UV_mV_table \"540 540 580 760 860 910 930 940 950 680 700 720 780 810 810 820 900 960 970\"" >> $CONFIGFILE
+	echo "write /sys/devices/system/cpu/cpu0/cpufreq/UV_mV_table \"540 540 580 760 860 930 940 950 680 720 810 890 900 940 960\"" >> $CONFIGFILE
 	echo "" >> $CONFIGFILE
 elif [ $VOLT == 2 ]; then
 	echo "# CPU & GPU HEAVY UV" >> $CONFIGFILE
 	echo "write /sys/devices/system/cpu/cpu0/cpufreq/GPU_mV_table \"680 700 760 800 860 910 970 1030 1050\"" >> $CONFIGFILE
-	echo "write /sys/devices/system/cpu/cpu0/cpufreq/UV_mV_table \"680 710 760 780 880 910 930 940 950 680 700 740 800 810 810 820 920 980 990\"" >> $CONFIGFILE
+	echo "write /sys/devices/system/cpu/cpu0/cpufreq/UV_mV_table \"680 710 760 880 910 930 940 950 700 740 840 900 920 950 980\"" >> $CONFIGFILE
 	echo "" >> $CONFIGFILE
 elif [ $VOLT == 3 ]; then
 	echo "# CPU & GPU LIGHT UV" >> $CONFIGFILE
 	echo "write /sys/devices/system/cpu/cpu0/cpufreq/GPU_mV_table \"700 720 770 820 880 940 970 1030 1050\"" >> $CONFIGFILE
-	echo "write /sys/devices/system/cpu/cpu0/cpufreq/UV_mV_table \"720 730 750 880 920 930 940 950 980 710 720 760 800 830 850 870 950 990 1000\"" >> $CONFIGFILE
+	echo "write /sys/devices/system/cpu/cpu0/cpufreq/UV_mV_table \"720 730 750 900 920 940 960 980 710 720 760 800 830 850 870 950 960 980\"" >> $CONFIGFILE
 	echo "" >> $CONFIGFILE
 fi
-echo "# MISC" >> $CONFIGFILE
+echo "# MISC TWEAKS" >> $CONFIGFILE
 echo "setprop video.accelerate.hw 1" >> $CONFIGFILE
 echo "setprop debug.composition.type c2d" >> $CONFIGFILE
-echo "write /sys/kernel/debug/debug_enabled N" >> $CONFIGFILE
-
+echo "/sys/kernel/debug/debug_enabled N" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
-echo "# USB FASTCHARGE" >> $CONFIGFILE
-echo "write /sys/kernel/fast_charge/force_fast_charge $USB" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
-
 echo "# RUN USERTWEAKS SERVICE" >> $CONFIGFILE
 echo "start usertweaks" >> $CONFIGFILE
-if [ $ALMK -eq 1 ]; then
-	echo "start override" >> $CONFIGFILE
-fi
+echo "start override" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
+echo "" >> $CONFIGFILE
+if [ $ROM -eq 2 ] || [ $ROM -eq 1 ]; then
 echo "# INITIALIZE AND RUN SPECTRUM TWEAKS" >> $CONFIGFILE
 echo "setprop spectrum.support 1" >> $CONFIGFILE
-echo "setprop persist.spectrum.kernel \"Emeriss TraxEdition\""  >> $CONFIGFILE
+echo "setprop persist.spectrum.kernel \"Emeriss TraxEdition HMP\""  >> $CONFIGFILE
 echo "setprop persist.spectrum.profile $PROF" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
 echo "on property:persist.spectrum.profile=0" >> $CONFIGFILE
@@ -250,3 +348,4 @@ echo "" >> $CONFIGFILE
 echo "on property:persist.spectrum.profile=3" >> $CONFIGFILE
 echo "start spectrum" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
+fi

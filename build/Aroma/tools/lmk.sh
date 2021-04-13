@@ -9,6 +9,5 @@
  # Enjoy !
  #
  sleep 3
- chmod 0644 /sys/module/lowmemorykiller/parameters/minfree
- echo '14474,21711,43422,72370,101318,108555' > /sys/module/lowmemorykiller/parameters/minfree
- echo 1 > /dev/stune/top-app/schedtune.boost
+ chmod 0660 /sys/module/lowmemorykiller/parameters/minfree
+ echo '5645,11308,16962,22616,28270,33924' > /sys/module/lowmemorykiller/parameters/minfree

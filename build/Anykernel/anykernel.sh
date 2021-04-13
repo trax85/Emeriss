@@ -4,7 +4,7 @@
 ## AnyKernel setup
 # begin properties
 properties() { '
-kernel.string=Emeriss-TraxEdition-EAS
+kernel.string=Emeriss-TraxEdition-HMP
 do.devicecheck=1
 do.modules=0
 do.cleanup=1
