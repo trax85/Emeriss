@@ -21,10 +21,7 @@ if [[ $(getprop sys.boot_completed) -eq 1 ]]; then
     chmod 0644 /sys/devices/soc.0/qcom,cpubw.50/devfreq/cpubw/max_freq
     chmod 0644 /sys/devices/soc.0/qcom,cpubw.50/devfreq/cpubw/min_freq
     chmod 0644 /sys/devices/soc.0/qcom,gpubw.36/devfreq/gpubw/max_freq
-    chmod 0644 /sys/devices/soc.0/qcom,gpubw.36/devfreq/gpubw/min_freq 
-    write /dev/cpuset/audio-app/cpus 0-2
-    write /dev/cpuset/system-background/cpus 0-5
-    write /dev/cpuset/camera-daemon/cpus 0-5
-    write /sys/module/mdss_mdp/parameters/frame_boost n
+    chmod 0644 /sys/devices/soc.0/qcom,gpubw.36/devfreq/gpubw/min_freq
+    chmod 0644 /sys/module/lazyplug/parameters/lazyplug_active 
     write /sys/module/msm_thermal/parameters/enabled y
 fi

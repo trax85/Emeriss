@@ -1,14 +1,14 @@
 ini_set("rom_name",             "Emeriss TraxEdition");
-ini_set("rom_version",          "TraxEdition EAS");
+ini_set("rom_version",          "TraxEdition HMP");
 ini_set("rom_author",           "@trax85,@wight554");
 ini_set("rom_device",           "Kenzo");
-ini_set("rom_date",             "April 16, 2021");
+ini_set("rom_date",             "December 29, 2020");
 
 ini_set("force_colorspace","rgba");
 #ini_set("dp","6");
 
 fontresload( "0", "ttf/Roboto-Regular.ttf", "11" );
-fontresload( "1", "ttf/Roboto-Regular.ttf", "15" ); 
+fontresload( "1", "ttf/Roboto-Regular.ttf", "15" );
 
 theme("zetsubou");
 
@@ -18,18 +18,18 @@ menubox(
   "",
   "menu.prop",
   "Install\n","Install Emeriss TraxEdition based on your preferences","@install",
-  "Changelog\n","Emeriss TraxEdition EAS Logs and features","@changelog",
+  "Changelog\n","Emeriss TraxEdition HMP Logs and features","@changelog",
   "Exit\n","Exit Emeriss Kernel manager and go back to recovery","@trash"
 );
 
 
 ###############
-# DISPLAY CHANGELOG 
+# DISPLAY CHANGELOG
 ###############
 
 if prop("menu.prop","selected")=="2" then
 
-    #-- TextDialog 
+    #-- TextDialog
  textdialog(
     #-- Title
     "Emeriss TraxEdition Changelog",
@@ -38,10 +38,10 @@ if prop("menu.prop","selected")=="2" then
     #-- Custom OK Button Text (Optional)
     "Close"
  );
- 
+
   #-- Back to Menu ( 2 Wizard UI to Back )
   back("1");
-  
+
 endif;
 
 ###############
@@ -67,7 +67,7 @@ endif;
 if prop("menu.prop", "selected")=="1" then
 alert(
   "Warning:",
-  "<b>Make sure that you have stock boot image</b> Press OK to continue\n\n",
+  "<b>Make sure that you have stock boot image or have a previous build of Emeriss.</b> Press OK to continue\n\n",
   "@dragon",
   "OK"
 );
@@ -85,7 +85,7 @@ viewbox(
 
 alert(
   "NOTICE:",
-  "For best experience -\n\n1.Don't FLASH over other kernels! Ensure that you either have the kernel that came with your rom.\n\n2.Do not use any scripts or MODS to tune cpu governors, this kernel already does that for your cpu.\n\n",
+  "For best experience -\n\n1.Don't FLASH over other kernels. Ensure that you either have the kernel that came with your rom.\n\n2.Do not use any scripts or MODS to tune cpu governors, this kernel already does that for your cpu.\n\n",
   "@warning",
   "OK"
 );
@@ -131,18 +131,18 @@ selectbox(
   "Low ","\nFeedback strength is set to 25%",1
 );
 
+selectbox(
+  "\n\n<b>Set Your Profile","<@center><b>\n\n\n\n\nThis will tune your default kernel settings according to your requirement.\n</b></@>","","profile.prop",
+  "Balanced ","\nRecommended",1,
+  "Battery ","\nMay cause lags",0,
+  "Performance ","\nMay yield poor battery backup",0
+);
+
 alert(
   "NOTICE:",
   "Please Read -\n\nInstall Spectrum App/Spectrum supported KM After Flashing kernel as each profile Concentrates to do one thing. So Please use Spectrum to change between profiles to get Optimum Perf and Battery.\n\nBalance - For Normal use like Browsing, Chatting Streaming and other daily tasks.\n\nBattery - Very Light use like Calls and Chat.\n\nPerformance - Intermediate of Balance and Gaming(Depends on your profile Type).\n\nGaming - Heavily Focused on Gaming Performance.\n\n",
   "@warning",
   "OK"
-);
-
-selectbox(
-  "\n\n<b>Set Your Default Profile","<@center><b>\n\n\n\n\nThe Choosen profile will be automatically set on boot.\n</b></@>","","profile.prop",
-  "Balanced ","\nRecommended Default Profile",1,
-  "Battery ","\nMay cause lags",0,
-  "Performance ","\nMay yield poor battery backup",0
 );
 
 selectbox(
@@ -155,7 +155,7 @@ selectbox(
   "\n\n<@center><b>Apply UV to CPU and GPU ?\nWarning ! </@>","<@center><b>\n\n\n\n\nThis will change your stock voltages.\nSelect NO if you are unsure about this.\n</b></@>","","uv.prop",
   "Extreme UV ","\nMay cause Random Reboots for some people",0,
   "Heavy UV ","\nVery low Voltages for Both CPU and GPU",0,
-  "Light UV ","\nLow Volatges for CPU and slight uv for GPU",0, 
+  "Light UV ","\nLow Volatges for CPU and slight uv for GPU",0,
   "No UV ","\nNo Voltage changes For CPU and GPU",1
 );
 
@@ -174,20 +174,21 @@ selectbox(
 );
 
 selectbox(
-  "\n\n<b>Want New Thermal Engine ?","<@center><b>\n\n\n\n\nReplaces thermlas with roms default thermals with thermals tuned for emeriss.\n</b></@>","","thermal.prop",
+  "\n\n<b>Want New Thermal Engine ?","<@center><b>\n\n\n\n\nReplaces thermlas with roms default thermals with thermals tuned for Emeriss.\n</b></@>","","thermal.prop",
   "Old thermal","\nPotential fix for slow charging",0,
-  "New thermal","\nRecommended thermal config for Emeriss",0,
-  "Cpu thermal","\nThermals Disabled for GPU, May Cause Heating",0,
+  "New thermal","\nRecommended thermal config for Shadow",0,
+  "Cpu Only","\nThermals Disabled for GPU, May Cause Heating",0,
   "Default thermal","\nDoes not replace/edit thermals",1
 );
 
 checkbox(
   "\n\n<b>Other Settings","<@center><b>\n\nSelect the mods you want to install</b>\n\n</@>","","mods.prop",
-  "Disable Fsync","\nGives slight performance boost at the cost of data-loss in case of reboot",0,
+  "Disable Fsync","\nFaster fileystem performance, but risk of Data Loss",0,
   "USB Fastcharge","\nIncrease charge current while charging via USB",0,
   "Backlight Dimmer","\nThis lowers Max-Min brightness of display",0,
   "Audio Mod Capability","\nDisable audio codec power gating",0,
-  "New Jack Detection","\nEnable this if you have headset jack issues",0
+  "New Jack Detection","\nEnable this if you have headset jack issues",0,
+  "Less Aggresive LMK","\nEnable this if you have background apps crashing",0
 );
 
 menubox(
@@ -195,7 +196,7 @@ menubox(
   "<@center>\n\n\nReady to install\n\n</@>",
   "",
   "menu.prop",
-  "Install Emeriss EAS","","@install",
+  "Install Emeriss HMP","","@install",
   "Abort installation","","@trash"
 );
 
@@ -218,11 +219,11 @@ ini_set("text_next", "Finish");
 if getvar("retstatus")=="0" then
 checkviewbox(
     "\n\nInstallation Completed",
-  
+
     "<#selectbg_g>\n\n\n\n\n<b>Congratulations...</b></#>\n\n"+
     "<b>"+ini_get("rom_name")+"</b> has been installed into your device.\n\n"+
     "Installer Status: "+getvar("retstatus")+"\n\n",
-	
+
     "@welcome",
 
     "Reboot your device now.",
@@ -231,7 +232,7 @@ checkviewbox(
 
     "reboot_it"
 );
-  
+
 else
    viewbox("Installation Failed","\n\nInstaller Status: "+ getvar("retstatus"),"@warning");
 endif;

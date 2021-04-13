@@ -45,9 +45,9 @@ export ARCH=arm64
 # Export Toolchain-path path
 #
 #gcc 11
-#export CROSS_COMPILE="/home/nesara/gcc-arm64/bin/aarch64-elf-"
+export CROSS_COMPILE="/home/nesara/gcc-arm64/bin/aarch64-elf-"
 #gcc 9.2 
-export CROSS_COMPILE="/home/nesara/aarch64-elf-gcc/bin/aarch64-elf-"
+#export CROSS_COMPILE="/home/nesara/aarch64-elf-gcc/bin/aarch64-elf-"
 
 export KBUILD_BUILD_USER="trax85"
 #
@@ -79,7 +79,7 @@ rm *.zip > /dev/null 2>&1
 # Aroma
 #
 echo -e "$yellow\n Build succesful, generating flashable zip now \n $white"
-zip -r Emeriss-TraxEdition-EAS-Aroma-$date.zip * > /dev/null
+zip -r Emeriss-TraxEdition-HMP-Aroma-$date.zip * > /dev/null
 End=$(date +"%s")
 Diff=$(($End - $Start))
 echo -e "$yellow $KERNEL_DIR/export/$VERSION/Emeriss-Trax-Kernel-$date.zip \n$white"
@@ -94,7 +94,7 @@ rm *.zip > /dev/null 2>&1
 # Zip Flash Tools and make Emeriss zip
 # Anykernel
 #
-zip -r Emeriss-TraxEdition-EAS-$date.zip * > /dev/null
+zip -r Emeriss-TraxEdition-HMP-$date.zip * > /dev/null
 
 echo -e "$gre << Build completed in $(($Diff / 60)) minutes and $(($Diff % 60)) seconds >> \n $white"
 fi
