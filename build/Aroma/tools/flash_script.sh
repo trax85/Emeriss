@@ -18,7 +18,7 @@
 #
 zim=/tmp/Image
 dim=/tmp/dt.img
-cmd="androidboot.hardware=qcom ehci-hcd.park=3 androidboot.bootdevice=7824900.sdhci lpm_levels.sleep_disabled=1 ramoops_memreserve=4M"
+cmd="androidboot.hardware=qcom ehci-hcd.park=3 androidboot.bootdevice=7824900.sdhci ramoops_memreserve=4M"
 cmd=$cmd" androidboot.selinux=permissive"
 cmd=$cmd" cpu_max_c1=1401600"" cpu_max_c2=1804800"
 
