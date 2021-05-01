@@ -197,22 +197,26 @@ if [ $COLOR == 1 ]; then
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_sat 285" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_val 256" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_cont 265" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_min 100" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal \"254 252 230"\" >> $CONFIGFILE
 elif [ $COLOR == 2 ]; then
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_sat 269" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_val 256" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_cont 256" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_min 35" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal \"254 254 240"\" >> $CONFIGFILE
 elif [ $COLOR == 3 ]; then
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_sat 287" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_val 257" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_cont 265" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_min 210" >> $CONFIGFILE
 	echo "write /sys/devices/platform/kcal_ctrl.0/kcal \"256 254 240"\" >> $CONFIGFILE
 elif [ $COLOR == 4 ]; then
-	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_sat 255" >> $CONFIGFILE
-	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_val 255" >> $CONFIGFILE
-	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_cont 255" >> $CONFIGFILE
-	echo "write /sys/devices/platform/kcal_ctrl.0/kcal \"256 256 256"\" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_sat 265" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_val 263" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_cont 263" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal_min 35" >> $CONFIGFILE
+	echo "write /sys/devices/platform/kcal_ctrl.0/kcal \"235 235 256"\" >> $CONFIGFILE
 fi
 echo "write /sys/devices/platform/kcal_ctrl.0/kcal_enable 1" >> $CONFIGFILE
 echo "" >> $CONFIGFILE
