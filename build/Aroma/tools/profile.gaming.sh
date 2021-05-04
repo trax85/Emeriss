@@ -1,12 +1,12 @@
 #!/system/bin/sh
 # SPECTRUM & FRANCO KERNEL MANAGERS
 # Profile initialization by Zile995
-echo 1 > /sys/devices/system/cpu/cpu0/online
-echo 1 > /sys/devices/system/cpu/cpu1/online
-echo 1 > /sys/devices/system/cpu/cpu2/online
-echo 1 > /sys/devices/system/cpu/cpu3/online
-echo 1 > /sys/devices/system/cpu/cpu4/online
-echo 1 > /sys/devices/system/cpu/cpu5/online
+#echo 1 > /sys/devices/system/cpu/cpu0/online
+#echo 1 > /sys/devices/system/cpu/cpu1/online
+#echo 1 > /sys/devices/system/cpu/cpu2/online
+#echo 1 > /sys/devices/system/cpu/cpu3/online
+#echo 1 > /sys/devices/system/cpu/cpu4/online
+#echo 1 > /sys/devices/system/cpu/cpu5/online
 #A53
 echo interactive > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 echo 691200 > /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
@@ -41,12 +41,12 @@ echo 20000 > /sys/module/cpu_boost/parameters/input_boost_enabled 0
 echo 20000 > /sys/module/cpu_boost/parameters/input_boost_freq "0:1305600 1:1305600 2:1305600 3:1305600 4:1190400 5:1190400"
 echo 20000 > /sys/module/cpu_boost/parameters/input_boost_ms 500
 #Hotplug
-echo 0 > /sys/module/lazyplug/parameters/lazyplug_active
+#echo 0 > /sys/module/lazyplug/parameters/lazyplug_active
 #Workqueue
 echo N > /sys/module/workqueue/parameters/power_efficient 
 #Scheduler
-echo deadline > /sys/block/mmcblk0/queue/scheduler
-echo deadline > /sys/block/mmcblk1/queue/scheduler 
+echo cfq > /sys/block/mmcblk0/queue/scheduler
+echo cfq > /sys/block/mmcblk1/queue/scheduler 
 #Adreno-Driver and Gpu
 echo 3 > /sys/class/kgsl/kgsl-3d0/devfreq/adrenoboost 
 echo N > /sys/module/adreno_idler/parameters/adreno_idler_active 
