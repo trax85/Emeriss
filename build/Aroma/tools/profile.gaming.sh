@@ -41,12 +41,12 @@ echo 20000 > /sys/module/cpu_boost/parameters/input_boost_enabled 0
 echo 20000 > /sys/module/cpu_boost/parameters/input_boost_freq "0:1305600 1:1305600 2:1305600 3:1305600 4:1190400 5:1190400"
 echo 20000 > /sys/module/cpu_boost/parameters/input_boost_ms 500
 #Hotplug
-echo 0 > /sys/module/lazyplug/parameters/lazyplug_active
+#echo 0 > /sys/module/lazyplug/parameters/lazyplug_active
 #Workqueue
 echo N > /sys/module/workqueue/parameters/power_efficient 
 #Scheduler
-echo deadline > /sys/block/mmcblk0/queue/scheduler
-echo deadline > /sys/block/mmcblk1/queue/scheduler 
+echo cfq > /sys/block/mmcblk0/queue/scheduler
+echo cfq > /sys/block/mmcblk1/queue/scheduler 
 #Adreno-Driver and Gpu
 echo 3 > /sys/class/kgsl/kgsl-3d0/devfreq/adrenoboost 
 echo N > /sys/module/adreno_idler/parameters/adreno_idler_active 

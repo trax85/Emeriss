@@ -44,10 +44,10 @@ echo 0 > /sys/module/cpu_boost/parameters/input_boost_enabled
 echo "0:0 1:0 2:0 3:0 4:0 5:0" > /sys/module/cpu_boost/parameters/input_boost_freq
 echo 0 > /sys/module/cpu_boost/parameters/input_boost_ms
 #Hotplug
-echo 1 > /sys/module/lazyplug/parameters/lazyplug_active
-echo 6 > /sys/module/lazyplug/parameters/nr_run_profile_sel
-echo 6 > /sys/module/lazyplug/parameters/nr_run_hysteresis
-echo 500 > /sys/module/lazyplug/parameters/cpu_nr_run_threshold
+#echo 1 > /sys/module/lazyplug/parameters/lazyplug_active
+#echo 6 > /sys/module/lazyplug/parameters/nr_run_profile_sel
+#echo 6 > /sys/module/lazyplug/parameters/nr_run_hysteresis
+#echo 500 > /sys/module/lazyplug/parameters/cpu_nr_run_threshold
 #Workqueue
 echo Y > /sys/module/workqueue/parameters/power_efficient 
 #Scheduler

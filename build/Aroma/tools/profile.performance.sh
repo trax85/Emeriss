@@ -41,7 +41,7 @@ echo 0 > /sys/module/cpu_boost/parameters/input_boost_enabled
 echo "0:1305600 1:1305600 2:1305600 3:1305600 4:1190400 5:1190400" > /sys/module/cpu_boost/parameters/input_boost_freq
 echo 500 > /sys/module/cpu_boost/parameters/input_boost_ms
 #Hotplug
-echo 0 > /sys/module/lazyplug/parameters/lazyplug_active
+#echo 0 > /sys/module/lazyplug/parameters/lazyplug_active
 #Workqueue
 echo N > /sys/module/workqueue/parameters/power_efficient
 #Scheduler
