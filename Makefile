@@ -585,12 +585,12 @@ KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os
 else
-KBUILD_CFLAGS	+= -O3
+KBUILD_CFLAGS	+= -O2
 
 ifdef CONFIG_LTO
 LTO_CFLAGS    := -flto -flto=jobserver -fno-fat-lto-objects \
                  -fuse-linker-plugin -fwhole-program
-KBUILD_CFLAGS += $(LTO_CFLAGS) --param=max-inline-insns-auto=1000
+KBUILD_CFLAGS += $(LTO_CFLAGS)
 LTO_LDFLAGS   := $(LTO_CFLAGS) -Wno-lto-type-mismatch -Wno-psabi \
                  -Wno-stringop-overflow -flinker-output=nolto-rel
 LDFINAL       := $(CONFIG_SHELL) $(srctree)/scripts/gcc-ld $(LTO_LDFLAGS)
